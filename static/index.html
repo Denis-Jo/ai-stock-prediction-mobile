@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AI 주식 예측 및 퀀트 추천 (Mobile)</title>
+  
+  <!-- iOS PWA App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AI 주식예측">
+  <link rel="apple-touch-icon" href="https://img.icons8.com/gradient/192/000000/line-chart.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0b0f19">
+  
+  <!-- Remix Icon CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <!-- iOS Header Bar -->
+  <header class="header-container">
+    <div>
+      <div class="brand-title">ANTIGRAVITY AI</div>
+      <div class="brand-sub">Monte Carlo Stock Predictor</div>
+    </div>
+    <div style="font-size: 11px; background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(99,102,241,0.3);">
+      iOS PWA App
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="app-viewport">
+
+    <!-- Tab 1: AI Stock Prediction -->
+    <section id="tab-predict" class="tab-content active">
+      <!-- Search Box -->
+      <div class="search-box-container">
+        <i class="ri-search-line search-icon"></i>
+        <input type="text" id="searchInput" class="search-input" placeholder="종목명 또는 티커 검색 (예: 삼성전자, AAPL, TSLA)" autocomplete="off">
+        <div id="searchResultsDropdown" class="search-results-dropdown"></div>
+      </div>
+
+      <!-- Forecast Period Pills -->
+      <div class="period-pills">
+        <button class="pill-btn" data-period="1d">1일</button>
+        <button class="pill-btn" data-period="1w">1주</button>
+        <button class="pill-btn active" data-period="1m">1달</button>
+        <button class="pill-btn" data-period="6m">6개월</button>
+        <button class="pill-btn" data-period="1y">1년</button>
+      </div>
+
+      <!-- Active Stock Header Card -->
+      <div id="stockHeaderCard" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h2 id="stockName" style="font-size: 20px; font-weight: 700; color: #fff;">삼성전자</h2>
+            <span id="stockTicker" style="font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; font-family: monospace;">005930.KS</span>
+          </div>
+          <div style="text-align: right;">
+            <div id="stockPrice" style="font-size: 22px; font-weight: 800; color: #fff;">₩0</div>
+            <div id="stockTrend" style="font-size: 12px; font-weight: 600; color: var(--accent-green);">+0.00%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="predictionLoading" class="spinner-container" style="display: none;">
+        <div class="spinner"></div>
+        <p style="font-size: 13px; color: var(--text-muted);">1,000회 몬테카를로 시뮬레이션 및 딥러닝 분석 중...</p>
+      </div>
+
+      <!-- Forecast Summary Metrics -->
+      <div id="predictionMetrics" class="metrics-grid-3" style="display: none;">
+        <div class="mini-metric-card">
+          <div class="mini-metric-label">상승 확률</div>
+          <div id="mRiseProb" class="mini-metric-val" style="color: var(--accent-green);">0%</div>
+          <div class="mini-metric-sub" style="color: var(--text-muted);">시나리오 비율</div>
+        </div>
+        <div class="mini-metric-card">
+          <div class="mini-metric-label">목표 중간값</div>
+          <div id="mTargetPrice" class="mini-metric-val">₩0</div>
+          <div id="mTargetReturn" class="mini-metric-sub" style="color: var(--accent-green);">+0.0%</div>
+        </div>
+        <div class="mini-metric-card">
+          <div class="mini-metric-label">AI 종합 의견</div>
+          <div id="mOpinion" class="mini-metric-val" style="font-size: 13px; font-weight: 800; margin-top: 2px; color: var(--accent-green);">적극 매수</div>
+          <div class="mini-metric-sub" style="color: var(--text-muted);">LSTM 분석</div>
+        </div>
+      </div>
+
+      <!-- Fan Chart Container Card -->
+      <div id="predictionChartCard" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-size: 14px; font-weight: 700; color: #fff;">📊 주가 확률 분포 팬 차트</h3>
+          <span id="periodBadge" style="font-size: 11px; color: #a5b4fc; background: rgba(99,102,241,0.15); padding: 2px 8px; border-radius: 6px;">1달 예측</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="fanChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Additional Details Card -->
+      <div id="predictionDetailsCard" class="card" style="display: none;">
+        <h4 style="font-size: 13px; font-weight: 600; color: #a5b4fc; margin-bottom: 10px;">📉 95% 신뢰구간 시나리오</h4>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+          <span style="color: var(--text-muted);">최대 예상 상승폭:</span>
+          <span id="mMaxUpside" style="color: var(--accent-green); font-weight: 700;">+0.00%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+          <span style="color: var(--text-muted);">최대 예상 하락폭:</span>
+          <span id="mMaxDownside" style="color: var(--accent-red); font-weight: 700;">-0.00%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+          <span style="color: var(--text-muted);">예상 범위:</span>
+          <span id="mRangeText" style="color: #fff; font-weight: 600;">₩0 ~ ₩0</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Tab 2: AI Quant Portfolio Recommendation -->
+    <section id="tab-recommend" class="tab-content">
+      <div style="margin-bottom: 16px;">
+        <h2 style="font-size: 18px; font-weight: 700; color: #fff;">✨ AI 퀀트 추천 포트폴리오</h2>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">이동평균, RSI, MACD 및 모멘텀 지표 종합 스캐닝 결과</p>
+      </div>
+
+      <!-- Recommendation Sub-Tabs -->
+      <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+        <button id="recTabDomestic" class="pill-btn active" style="flex: 1;">🇰🇷 국내 KOSPI/KOSDAQ</button>
+        <button id="recTabForeign" class="pill-btn" style="flex: 1;">🇺🇸 해외 (미국 주식)</button>
+      </div>
+
+      <!-- Recommendation Loading -->
+      <div id="recLoading" class="spinner-container" style="display: none;">
+        <div class="spinner"></div>
+        <p style="font-size: 13px; color: var(--text-muted);">전 종목 퀀트 기술적 지표 실시간 분석 중...</p>
+      </div>
+
+      <!-- Recommendation Cards List Container -->
+      <div id="recCardsContainer"></div>
+    </section>
+
+    <!-- Tab 3: iPhone Connection & PWA Info -->
+    <section id="tab-iphone" class="tab-content">
+      <div class="card qr-container">
+        <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px;">📱 아이폰(iOS) 연결 및 외부 접속</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">동일한 Wi-Fi 연결 없이도 LTE / 5G 환경에서 QR 스캔으로 바로 접속 가능합니다!</p>
+        
+        <img id="qrImage" class="qr-img" src="" alt="iPhone QR Code">
+        
+        <div style="background: rgba(99,102,241,0.1); padding: 14px; border-radius: 14px; border: 1px solid rgba(99,102,241,0.3); margin-top: 10px;">
+          <div style="font-size: 11px; color: #a5b4fc; font-weight: 600;">🌐 LTE / 5G 어디서나 접속 (전세계 퍼블릭 HTTPS 주소):</div>
+          <div id="publicUrlText" style="font-size: 15px; font-weight: 800; color: #34d399; margin-top: 4px; font-family: monospace; word-break: break-all;">터널 연결 중...</div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px;">
+          <div style="font-size: 10.5px; color: var(--text-muted);">📶 로컬 Wi-Fi 접속 주소:</div>
+          <div id="mobileUrlText" style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-top: 2px; font-family: monospace;">http://0.0.0.0:8000</div>
+        </div>
+      </div>
+
+
+      <div class="card">
+        <h3 style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 12px;">📲 아이폰 홈 화면에 전용 앱으로 추가하기</h3>
+        <ol style="font-size: 13px; color: #cbd5e1; padding-left: 20px; line-height: 1.8;">
+          <li>아이폰 <b>Safari</b> 브라우저에서 위 접속 주소를 열어줍니다.</li>
+          <li>하단 중앙의 <b>공유 버튼 ( <i class="ri-share-box-line"></i> )</b>을 터치합니다.</li>
+          <li>메뉴 목록에서 <b>'홈 화면에 추가 (Add to Home Screen)'</b>를 선택합니다.</li>
+          <li>우측 상단 <b>'추가'</b>를 누르면 아이폰 바탕화면에 전용 네이티브 앱으로 등록됩니다!</li>
+        </ol>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- iOS Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <div class="nav-item active" data-tab="tab-predict">
+      <i class="ri-line-chart-line"></i>
+      <span>AI 예측</span>
+    </div>
+    <div class="nav-item" data-tab="tab-recommend">
+      <i class="ri-sparkles-line"></i>
+      <span>퀀트 추천</span>
+    </div>
+    <div class="nav-item" data-tab="tab-iphone">
+      <i class="ri-smartphone-line"></i>
+      <span>아이폰 앱</span>
+    </div>
+  </nav>
+
+  <script src="/static/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js');
+    }
+  </script>
+</body>
+</html>
