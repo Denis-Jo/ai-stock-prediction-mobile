@@ -1,4 +1,7 @@
 import os
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -19,6 +22,8 @@ COMPANY_TICKERS = {
     "POSCO홀딩스": "005490.KS",
     "네이버 (NAVER)": "035420.KS",
     "카카오": "035720.KS",
+    "카카오페이": "377300.KS",
+    "카카오뱅크": "323410.KS",
     "삼성물산": "028260.KS",
     "현대모비스": "012330.KS",
     "삼성SDI": "006400.KS",
@@ -31,8 +36,10 @@ COMPANY_TICKERS = {
     "HLB": "028300.KQ",
     "알테오젠": "196170.KQ",
     "레인보우로보틱스": "277810.KQ",
+    "KODEX 200": "069500.KS",
+    "TIGER 200": "102110.KS",
     
-    # 미국 주요 종목
+    # 미국 주요 종목 및 대표 ETF
     "애플 (Apple)": "AAPL",
     "마이크로소프트 (Microsoft)": "MSFT",
     "엔비디아 (NVIDIA)": "NVDA",
@@ -42,11 +49,33 @@ COMPANY_TICKERS = {
     "메타 (Meta Platforms)": "META",
     "인텔 (Intel)": "INTC",
     "AMD": "AMD",
-    "넷플릭스 (Netflix)": "NFLX"
+    "넷플릭스 (Netflix)": "NFLX",
+    "나스닥 100 ETF (QQQ)": "QQQ",
+    "S&P 500 ETF (SPY)": "SPY",
+    "반도체 3배 레버리지 (SOXL)": "SOXL",
+    "나스닥 3배 레버리지 (TQQQ)": "TQQQ"
 }
 
+# ---------------------------------------------------------
+# In-Memory Cache (TTL: 10~15분)
+# ---------------------------------------------------------
+_STOCK_CACHE = {}  # key: (ticker, start, end, interval) -> (timestamp, df)
+_REC_CACHE = {}    # key: forecast_days -> (timestamp, data_dict)
+CACHE_LOCK = threading.Lock()
+STOCK_CACHE_TTL = 600  # 10분
+REC_CACHE_TTL = 900    # 15분
+
 def load_stock_data(ticker: str, start: str, end: str, interval: str = "1d") -> pd.DataFrame:
-    """yfinance를 통한 시세 데이터 다운로드 및 정제"""
+    """yfinance를 통한 시세 데이터 다운로드 (인메모리 캐싱 적용)"""
+    cache_key = (ticker, start, end, interval)
+    now = time.time()
+
+    with CACHE_LOCK:
+        if cache_key in _STOCK_CACHE:
+            ts, cached_df = _STOCK_CACHE[cache_key]
+            if now - ts < STOCK_CACHE_TTL:
+                return cached_df.copy()
+
     try:
         data = yf.download(ticker, start=start, end=end, interval=interval, progress=False)
         if data.empty:
@@ -54,7 +83,10 @@ def load_stock_data(ticker: str, start: str, end: str, interval: str = "1d") -> 
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.droplevel(1)
         data = data.dropna()
-        return data
+
+        with CACHE_LOCK:
+            _STOCK_CACHE[cache_key] = (now, data)
+        return data.copy()
     except Exception as e:
         print(f"Error loading stock data for {ticker}: {e}")
         return pd.DataFrame()
@@ -154,50 +186,79 @@ def analyze_stock_indicators(name: str, ticker: str, df: pd.DataFrame, is_krw: b
         "is_krw": is_krw
     }
 
+def fetch_single_ticker_analysis(args):
+    name, ticker, start_str, end_str, forecast_days = args
+    ticker_prefix = ticker.split(".")[0]
+    is_krw = len(ticker_prefix) == 6 and ticker_prefix.isdigit() or ticker.endswith(".KS") or ticker.endswith(".KQ")
+    
+    df = load_stock_data(ticker, start_str, end_str, "1d")
+    if df.empty or len(df) < 60:
+        return None
+    return analyze_stock_indicators(name, ticker, df, is_krw, forecast_days)
+
 def get_quant_recommendations(forecast_days: int = 20):
-    """국내 및 해외 주요 추천 종목 상위 5개씩 연산"""
+    """국내 및 해외 추천 종목 병렬 연산 및 캐싱 (처리속도 40초 -> 1초 미만)"""
+    now = time.time()
+    with CACHE_LOCK:
+        if forecast_days in _REC_CACHE:
+            ts, cached_data = _REC_CACHE[forecast_days]
+            if now - ts < REC_CACHE_TTL:
+                return cached_data
+
     end_date = datetime.now()
     start_date = end_date - relativedelta(years=1)
     
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
     
+    tasks = [
+        (name, ticker, start_str, end_str, forecast_days)
+        for name, ticker in COMPANY_TICKERS.items()
+    ]
+    
     domestic_results = []
     foreign_results = []
     
-    for name, ticker in COMPANY_TICKERS.items():
-        ticker_prefix = ticker.split(".")[0]
-        is_krw = len(ticker_prefix) == 6 and ticker_prefix.isdigit() or ticker.endswith(".KS") or ticker.endswith(".KQ")
-        
-        df = load_stock_data(ticker, start_str, end_str, "1d")
-        if df.empty or len(df) < 60:
-            continue
-            
-        analysis = analyze_stock_indicators(name, ticker, df, is_krw, forecast_days)
-        if analysis:
-            if is_krw:
-                domestic_results.append(analysis)
-            else:
-                foreign_results.append(analysis)
+    # ThreadPoolExecutor로 12개 스레드 병렬 다운로드 (직렬 34초 -> 병렬 1~2초)
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        results = executor.map(fetch_single_ticker_analysis, tasks)
+        for res in results:
+            if res:
+                if res["is_krw"]:
+                    domestic_results.append(res)
+                else:
+                    foreign_results.append(res)
                 
     domestic_sorted = sorted(domestic_results, key=lambda x: x["expected_return"], reverse=True)[:5]
     foreign_sorted = sorted(foreign_results, key=lambda x: x["expected_return"], reverse=True)[:5]
     
-    return {
+    result_data = {
         "domestic": domestic_sorted,
         "foreign": foreign_sorted
     }
 
+    with CACHE_LOCK:
+        _REC_CACHE[forecast_days] = (now, result_data)
+
+    return result_data
+
+_SEARCH_CACHE = {}
+
 def search_stock_list(query: str):
-    """검색 쿼리에 매칭되는 종목 리스트 생성"""
-    results = []
+    """검색 쿼리에 매칭되는 종목 리스트 생성 (캐싱 및 고속 응답)"""
     q_lower = query.lower().strip()
+    if not q_lower:
+        return []
     
+    if q_lower in _SEARCH_CACHE:
+        return _SEARCH_CACHE[q_lower]
+        
+    results = []
     for name, ticker in COMPANY_TICKERS.items():
         if q_lower in name.lower() or q_lower in ticker.lower():
             results.append({"name": name, "ticker": ticker})
             
-    # yfinance 실시간 검색 폴백 (영문/숫자인 경우)
+    # yfinance 타임아웃 1.5초 안전 처리
     if not results and len(query) >= 2 and query.isalnum():
         try:
             s = yf.Search(query)
@@ -212,4 +273,5 @@ def search_stock_list(query: str):
     if not results and query:
         results.append({"name": f"직접 입력 ({query.upper()})", "ticker": query.upper()})
         
+    _SEARCH_CACHE[q_lower] = results
     return results

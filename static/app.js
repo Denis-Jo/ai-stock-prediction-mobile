@@ -3,6 +3,7 @@ let currentPeriod = "1m";
 let fanChartInstance = null;
 let quantData = { domestic: [], foreign: [] };
 let activeRecMarket = "domestic";
+let hasLoadedRecs = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   initTabNavigation();
@@ -10,11 +11,24 @@ document.addEventListener("DOMContentLoaded", () => {
   initSearchAutocomplete();
   initRecSubTabs();
   
-  // Initial Loads
+  // Initial Load (Only main prediction & network info, recommendations lazy-loaded on tab click)
   loadPrediction(currentTicker, currentPeriod);
   loadNetworkInfo();
-  loadRecommendations();
 });
+
+/* Helper: Fetch with Timeout */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
 
 /* Tab Navigation Switcher */
 function initTabNavigation() {
@@ -30,6 +44,11 @@ function initTabNavigation() {
 
       item.classList.add("active");
       document.getElementById(targetTab).classList.add("active");
+
+      // Lazy load recommendation tab on first click
+      if (targetTab === "tab-recommend" && !hasLoadedRecs) {
+        loadRecommendations();
+      }
     });
   });
 }
@@ -63,13 +82,13 @@ function initSearchAutocomplete() {
 
     debounceTimer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`);
+        const res = await fetchWithTimeout(`/api/stocks/search?q=${encodeURIComponent(q)}`, {}, 3000);
         const data = await res.json();
         renderDropdown(data.results);
       } catch (err) {
         console.error("Search fetch error:", err);
       }
-    }, 250);
+    }, 200);
   });
 
   document.addEventListener("click", (e) => {
@@ -118,7 +137,7 @@ async function loadPrediction(ticker, period) {
   detailsCard.style.display = "none";
 
   try {
-    const res = await fetch(`/api/stocks/predict?ticker=${encodeURIComponent(ticker)}&period=${period}`);
+    const res = await fetchWithTimeout(`/api/stocks/predict?ticker=${encodeURIComponent(ticker)}&period=${period}`, {}, 10000);
     const data = await res.json();
 
     loading.style.display = "none";
@@ -165,6 +184,7 @@ async function loadPrediction(ticker, period) {
   } catch (err) {
     loading.style.display = "none";
     console.error("Prediction Load Error:", err);
+    alert("시세 데이터를 가져오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.");
   }
 }
 
@@ -305,13 +325,24 @@ async function loadRecommendations() {
   const loading = document.getElementById("recLoading");
   loading.style.display = "block";
   try {
-    const res = await fetch('/api/stocks/recommendations?days=20');
+    const res = await fetchWithTimeout('/api/stocks/recommendations?days=20', {}, 12000);
     quantData = await res.json();
     loading.style.display = "none";
+    hasLoadedRecs = true;
     renderRecCards();
   } catch (err) {
     loading.style.display = "none";
     console.error("Rec Load Error:", err);
+    const container = document.getElementById("recCardsContainer");
+    container.innerHTML = `
+      <div style="text-align:center; padding: 30px; color: var(--text-muted);">
+        <i class="ri-error-warning-line" style="font-size: 28px; color: #f87171;"></i>
+        <p style="margin-top: 8px;">추천 데이터를 불러오지 못했습니다.</p>
+        <button onclick="loadRecommendations()" style="margin-top: 12px; background: #4f46e5; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+          <i class="ri-refresh-line"></i> 다시 시도
+        </button>
+      </div>
+    `;
   }
 }
 
@@ -359,7 +390,7 @@ function renderRecCards() {
 /* iPhone Network QR Code Info Loader */
 async function loadNetworkInfo() {
   try {
-    const res = await fetch('/api/network-info');
+    const res = await fetchWithTimeout('/api/network-info', {}, 5000);
     const data = await res.json();
     document.getElementById("qrImage").src = data.qr_url;
     document.getElementById("mobileUrlText").innerText = data.mobile_url;
@@ -375,4 +406,5 @@ async function loadNetworkInfo() {
     console.error("Network info error:", err);
   }
 }
+
 

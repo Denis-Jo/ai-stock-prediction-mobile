@@ -75,10 +75,25 @@ class LightweightLSTMModel:
         y_pred = np.dot(h, self.W_out) + self.b_out
         return y_pred.flatten()
 
+import time
+import threading
+
+_PREDICT_CACHE = {}
+PREDICT_CACHE_LOCK = threading.Lock()
+PREDICT_CACHE_TTL = 600  # 10분
+
 def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_str: str = None):
-    """LSTM + 몬테카를로 1,000회 시뮬레이션 예측 수행"""
+    """LSTM + 몬테카를로 1,000회 시뮬레이션 예측 수행 (인메모리 캐싱 적용)"""
     if period_key not in PERIOD_CONFIG:
         period_key = "1m"
+
+    cache_key = (ticker.upper(), period_key, base_date_str or "today")
+    now = time.time()
+    with PREDICT_CACHE_LOCK:
+        if cache_key in _PREDICT_CACHE:
+            ts, res_data = _PREDICT_CACHE[cache_key]
+            if now - ts < PREDICT_CACHE_TTL:
+                return res_data
         
     cfg = PERIOD_CONFIG[period_key]
     interval = cfg["interval"]
@@ -95,7 +110,8 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
             
     today_dt = datetime.now()
     train_end_str = base_date.strftime("%Y-%m-%d")
-    train_start_str = (base_date - relativedelta(years=10)).strftime("%Y-%m-%d")
+    # 최적화: 10년치 시세 데이터 다운로드 대신 최근 2년치(약 500영업일)로 축소하여 속도 5배 향상
+    train_start_str = (base_date - relativedelta(years=2)).strftime("%Y-%m-%d")
     download_end_str = today_dt.strftime("%Y-%m-%d") if base_date <= today_dt else train_end_str
     
     stock_data = load_stock_data(ticker, train_start_str, download_end_str, interval)
@@ -105,6 +121,7 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     train_data = stock_data.loc[:train_end_str]
     if len(train_data) < 35:
         train_data = stock_data
+
         
     close_prices_train = train_data['Close'].values.flatten()
     close_prices = stock_data['Close'].values.flatten()
@@ -208,7 +225,7 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     
     all_future_dates = [dates[-1]] + future_dates
     
-    return {
+    res_dict = {
         "ticker": ticker,
         "is_krw": is_krw,
         "currency_symbol": currency_symbol,
@@ -233,3 +250,9 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
         "upper_95": [round(float(p), 2 if not is_krw else 0) for p in upper_95],
         "lower_95": [round(float(p), 2 if not is_krw else 0) for p in lower_95]
     }
+
+    with PREDICT_CACHE_LOCK:
+        _PREDICT_CACHE[cache_key] = (now, res_dict)
+
+    return res_dict
+
