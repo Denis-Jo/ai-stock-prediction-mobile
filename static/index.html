@@ -71,7 +71,11 @@
       <!-- Loading State -->
       <div id="predictionLoading" class="spinner-container" style="display: none;">
         <div class="spinner"></div>
-        <p style="font-size: 13px; color: var(--text-muted);">1,000회 몬테카를로 시뮬레이션 및 딥러닝 분석 중...</p>
+        <p style="font-size: 13px; color: var(--text-muted);">1,000회 몬테카를로 시뮬레이션 및 딥러닝 분석 진행 중...</p>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="predictionProgressBar"></div>
+        </div>
+        <div class="progress-percent" id="predictionProgressText">0%</div>
       </div>
 
       <!-- Forecast Summary Metrics -->
@@ -139,12 +143,18 @@
       <!-- Recommendation Loading -->
       <div id="recLoading" class="spinner-container" style="display: none;">
         <div class="spinner"></div>
-        <p style="font-size: 13px; color: var(--text-muted);">전 종목 퀀트 기술적 지표 실시간 분석 중...</p>
+        <p style="font-size: 13px; color: var(--text-muted);">전 종목 퀀트 기술적 지표 실시간 분석 진행 중...</p>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="recProgressBar"></div>
+        </div>
+        <div class="progress-percent" id="recProgressText">0%</div>
       </div>
 
-      <!-- Recommendation Cards List Container -->
-      <div id="recCardsContainer"></div>
+      <!-- Recommendation Cards List Containers (Instant 0ms Toggle) -->
+      <div id="recCardsDomestic" class="rec-market-container"></div>
+      <div id="recCardsForeign" class="rec-market-container" style="display: none;"></div>
     </section>
+
 
     <!-- Tab 3: iPhone Connection & PWA Info -->
     <section id="tab-iphone" class="tab-content">

@@ -122,6 +122,43 @@ function selectStock(ticker, name) {
   loadPrediction(currentTicker, currentPeriod);
 }
 
+/* Helper: Smooth Progress Bar Animator */
+function startProgressAnimation(barId, textId, estimatedMs = 2500) {
+  const bar = document.getElementById(barId);
+  const text = document.getElementById(textId);
+  if (!bar || !text) return { finish: () => {}, reset: () => {} };
+
+  let currentProgress = 0;
+  bar.style.width = "0%";
+  text.innerText = "0%";
+
+  const startTime = Date.now();
+  const interval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const ratio = Math.min(elapsed / estimatedMs, 1);
+    
+    // Smooth quadratic ease-out curve: fast up to 90%, holds at 95%
+    currentProgress = Math.floor(95 * (1 - Math.pow(1 - ratio, 2)));
+    if (currentProgress > 95) currentProgress = 95;
+
+    bar.style.width = currentProgress + "%";
+    text.innerText = currentProgress + "%";
+  }, 40);
+
+  return {
+    finish: () => {
+      clearInterval(interval);
+      bar.style.width = "100%";
+      text.innerText = "100%";
+    },
+    reset: () => {
+      clearInterval(interval);
+      bar.style.width = "0%";
+      text.innerText = "0%";
+    }
+  };
+}
+
 /* Main Stock Monte Carlo Prediction Loader */
 async function loadPrediction(ticker, period) {
   const loading = document.getElementById("predictionLoading");
@@ -136,52 +173,59 @@ async function loadPrediction(ticker, period) {
   chartCard.style.display = "none";
   detailsCard.style.display = "none";
 
+  const progress = startProgressAnimation("predictionProgressBar", "predictionProgressText", 1500);
+
   try {
     const res = await fetchWithTimeout(`/api/stocks/predict?ticker=${encodeURIComponent(ticker)}&period=${period}`, {}, 10000);
     const data = await res.json();
 
-    loading.style.display = "none";
-    if (data.error) {
-      alert(data.error);
-      return;
-    }
+    progress.finish();
 
-    // Header Card
-    document.getElementById("stockName").innerText = ticker;
-    document.getElementById("stockTicker").innerText = data.ticker;
-    const symbol = data.currency_symbol;
-    document.getElementById("stockPrice").innerText = `${symbol}${data.current_price.toLocaleString()}`;
-    const trendEl = document.getElementById("stockTrend");
-    trendEl.innerText = `${data.recent_trend_pct >= 0 ? '▲' : '▼'} ${Math.abs(data.recent_trend_pct)}% (최근 30봉 추세)`;
-    trendEl.style.color = data.recent_trend_pct >= 0 ? "var(--accent-green)" : "var(--accent-red)";
-    headerCard.style.display = "block";
+    setTimeout(() => {
+      loading.style.display = "none";
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
 
-    // Metrics
-    document.getElementById("mRiseProb").innerText = `${data.rise_prob}%`;
-    document.getElementById("mRiseProb").style.color = data.rise_prob >= 50 ? "var(--accent-green)" : "var(--accent-red)";
-    
-    document.getElementById("mTargetPrice").innerText = `${symbol}${data.final_pred_price.toLocaleString()}`;
-    const targetReturnEl = document.getElementById("mTargetReturn");
-    targetReturnEl.innerText = `${data.price_change_pct >= 0 ? '+' : ''}${data.price_change_pct}%`;
-    targetReturnEl.style.color = data.price_change_pct >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+      // Header Card
+      document.getElementById("stockName").innerText = ticker;
+      document.getElementById("stockTicker").innerText = data.ticker;
+      const symbol = data.currency_symbol;
+      document.getElementById("stockPrice").innerText = `${symbol}${data.current_price.toLocaleString()}`;
+      const trendEl = document.getElementById("stockTrend");
+      trendEl.innerText = `${data.recent_trend_pct >= 0 ? '▲' : '▼'} ${Math.abs(data.recent_trend_pct)}% (최근 30봉 추세)`;
+      trendEl.style.color = data.recent_trend_pct >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+      headerCard.style.display = "block";
 
-    const opinionEl = document.getElementById("mOpinion");
-    opinionEl.innerText = data.opinion_text;
-    opinionEl.style.color = data.opinion_color;
-    metricsGrid.style.display = "grid";
+      // Metrics
+      document.getElementById("mRiseProb").innerText = `${data.rise_prob}%`;
+      document.getElementById("mRiseProb").style.color = data.rise_prob >= 50 ? "var(--accent-green)" : "var(--accent-red)";
+      
+      document.getElementById("mTargetPrice").innerText = `${symbol}${data.final_pred_price.toLocaleString()}`;
+      const targetReturnEl = document.getElementById("mTargetReturn");
+      targetReturnEl.innerText = `${data.price_change_pct >= 0 ? '+' : ''}${data.price_change_pct}%`;
+      targetReturnEl.style.color = data.price_change_pct >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 
-    // Chart
-    document.getElementById("periodBadge").innerText = `${data.period_label} 예측`;
-    renderFanChart(data);
-    chartCard.style.display = "block";
+      const opinionEl = document.getElementById("mOpinion");
+      opinionEl.innerText = data.opinion_text;
+      opinionEl.style.color = data.opinion_color;
+      metricsGrid.style.display = "grid";
 
-    // Details Card
-    document.getElementById("mMaxUpside").innerText = `+${data.max_upside_pct}%`;
-    document.getElementById("mMaxDownside").innerText = `${data.max_downside_pct}%`;
-    document.getElementById("mRangeText").innerText = `${symbol}${data.lower_95_final.toLocaleString()} ~ ${symbol}${data.upper_95_final.toLocaleString()}`;
-    detailsCard.style.display = "block";
+      // Chart
+      document.getElementById("periodBadge").innerText = `${data.period_label} 예측`;
+      renderFanChart(data);
+      chartCard.style.display = "block";
+
+      // Details Card
+      document.getElementById("mMaxUpside").innerText = `+${data.max_upside_pct}%`;
+      document.getElementById("mMaxDownside").innerText = `${data.max_downside_pct}%`;
+      document.getElementById("mRangeText").innerText = `${symbol}${data.lower_95_final.toLocaleString()} ~ ${symbol}${data.upper_95_final.toLocaleString()}`;
+      detailsCard.style.display = "block";
+    }, 150);
 
   } catch (err) {
+    progress.reset();
     loading.style.display = "none";
     console.error("Prediction Load Error:", err);
     alert("시세 데이터를 가져오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.");
@@ -301,61 +345,82 @@ function renderFanChart(data) {
   });
 }
 
-/* Recommendations Sub-Tabs & Data Loader */
+/* Recommendations Sub-Tabs (Instant 0ms Domestic / Foreign Toggle) */
 function initRecSubTabs() {
   const domBtn = document.getElementById("recTabDomestic");
   const forBtn = document.getElementById("recTabForeign");
+  const domContainer = document.getElementById("recCardsDomestic");
+  const forContainer = document.getElementById("recCardsForeign");
 
   domBtn.addEventListener("click", () => {
     domBtn.classList.add("active");
     forBtn.classList.remove("active");
     activeRecMarket = "domestic";
-    renderRecCards();
+    if (domContainer && forContainer) {
+      domContainer.style.display = "block";
+      forContainer.style.display = "none";
+    }
   });
 
   forBtn.addEventListener("click", () => {
     forBtn.classList.add("active");
     domBtn.classList.remove("active");
     activeRecMarket = "foreign";
-    renderRecCards();
+    if (domContainer && forContainer) {
+      domContainer.style.display = "none";
+      forContainer.style.display = "block";
+    }
   });
 }
 
 async function loadRecommendations() {
   const loading = document.getElementById("recLoading");
+  const domContainer = document.getElementById("recCardsDomestic");
+  const forContainer = document.getElementById("recCardsForeign");
+
   loading.style.display = "block";
+  if (domContainer) domContainer.style.display = "none";
+  if (forContainer) forContainer.style.display = "none";
+
+  const progress = startProgressAnimation("recProgressBar", "recProgressText", 2500);
+
   try {
     const res = await fetchWithTimeout('/api/stocks/recommendations?days=20', {}, 12000);
     quantData = await res.json();
-    loading.style.display = "none";
-    hasLoadedRecs = true;
-    renderRecCards();
+    
+    progress.finish();
+
+    setTimeout(() => {
+      loading.style.display = "none";
+      hasLoadedRecs = true;
+      renderRecCards();
+    }, 150);
+
   } catch (err) {
+    progress.reset();
     loading.style.display = "none";
     console.error("Rec Load Error:", err);
-    const container = document.getElementById("recCardsContainer");
-    container.innerHTML = `
-      <div style="text-align:center; padding: 30px; color: var(--text-muted);">
-        <i class="ri-error-warning-line" style="font-size: 28px; color: #f87171;"></i>
-        <p style="margin-top: 8px;">추천 데이터를 불러오지 못했습니다.</p>
-        <button onclick="loadRecommendations()" style="margin-top: 12px; background: #4f46e5; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-          <i class="ri-refresh-line"></i> 다시 시도
-        </button>
-      </div>
-    `;
+    if (domContainer) {
+      domContainer.style.display = "block";
+      domContainer.innerHTML = `
+        <div style="text-align:center; padding: 30px; color: var(--text-muted);">
+          <i class="ri-error-warning-line" style="font-size: 28px; color: #f87171;"></i>
+          <p style="margin-top: 8px;">추천 데이터를 불러오지 못했습니다.</p>
+          <button onclick="loadRecommendations()" style="margin-top: 12px; background: #4f46e5; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+            <i class="ri-refresh-line"></i> 다시 시도
+          </button>
+        </div>
+      `;
+    }
   }
 }
 
-function renderRecCards() {
-  const container = document.getElementById("recCardsContainer");
-  const list = quantData[activeRecMarket] || [];
-
-  if (list.length === 0) {
-    container.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-muted);">추천 종목 데이터 분석 진행 중입니다...</div>';
-    return;
+function buildCardsHtml(list) {
+  if (!list || list.length === 0) {
+    return '<div style="text-align:center; padding: 20px; color: var(--text-muted);">추천 종목 데이터 분석 진행 중입니다...</div>';
   }
 
-  container.innerHTML = list.map((item, idx) => {
+  return list.map((item, idx) => {
     const isForeign = !item.is_krw;
     const symbol = item.is_krw ? "₩" : "$";
     const rankClass = idx === 0 ? "rank-1" : (idx === 1 ? "rank-2" : (idx === 2 ? "rank-3" : ""));
@@ -386,6 +451,23 @@ function renderRecCards() {
     `;
   }).join("");
 }
+
+function renderRecCards() {
+  const domContainer = document.getElementById("recCardsDomestic");
+  const forContainer = document.getElementById("recCardsForeign");
+
+  if (domContainer) domContainer.innerHTML = buildCardsHtml(quantData.domestic || []);
+  if (forContainer) forContainer.innerHTML = buildCardsHtml(quantData.foreign || []);
+
+  if (activeRecMarket === "domestic") {
+    if (domContainer) domContainer.style.display = "block";
+    if (forContainer) forContainer.style.display = "none";
+  } else {
+    if (domContainer) domContainer.style.display = "none";
+    if (forContainer) forContainer.style.display = "block";
+  }
+}
+
 
 /* iPhone Network QR Code Info Loader */
 async function loadNetworkInfo() {
