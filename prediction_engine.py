@@ -13,6 +13,19 @@ PERIOD_CONFIG = {
     "1y": {"interval": "1wk", "steps": 52, "label": "1년", "period_name": "1년 (1 Year)"}
 }
 
+def estimate_garch_volatility(log_returns, num_steps, alpha=0.08, beta=0.90):
+    if len(log_returns) < 10:
+        return np.full(num_steps, np.std(log_returns) if len(log_returns) > 0 else 0.02)
+    omega = np.var(log_returns) * (1.0 - alpha - beta)
+    last_vol = np.std(log_returns[-20:])
+    vols = np.zeros(num_steps)
+    curr_vol = last_vol
+    for t in range(num_steps):
+        shock = np.random.normal(0, curr_vol)
+        curr_vol = np.sqrt(max(1e-6, omega + alpha * (shock**2) + beta * (curr_vol**2)))
+        vols[t] = curr_vol
+    return vols
+
 class LightweightLSTMModel:
     """초고속 딥러닝/신경망 기대수익률(Drift) 예측 엔진 (NumPy/RMSProp 기반)"""
     def __init__(self, window_size=30, hidden_dim=64):
@@ -168,9 +181,9 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     model = LightweightLSTMModel(window_size=window_size, hidden_dim=64)
     model.fit(x_train, y_train, epochs=20, lr=0.01)
     
-    # 몬테카를로 1,000회 시뮬레이션
+    # GARCH-LSTM 몬테카를로 1,000회 시뮬레이션
     num_simulations = 1000
-    sigma = np.std(log_returns_train)
+    garch_vols = estimate_garch_volatility(log_returns_train, forecast_steps)
     
     last_actual_prices = close_prices[-(window_size+1):]
     last_actual_log_returns = np.log(last_actual_prices[1:] / last_actual_prices[:-1])
@@ -184,7 +197,8 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     
     for step in range(forecast_steps):
         expected_returns = model.predict_batch(sim_returns_buffer)
-        shocks = np.random.normal(loc=0, scale=sigma, size=(num_simulations,))
+        step_sigma = garch_vols[step]
+        shocks = np.random.normal(loc=0, scale=step_sigma, size=(num_simulations,))
         sim_step_returns = expected_returns + shocks
         sim_prices = sim_prices * np.exp(sim_step_returns)
         simulated_paths[:, step] = sim_prices
