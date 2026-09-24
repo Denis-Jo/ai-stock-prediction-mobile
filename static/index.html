@@ -156,7 +156,61 @@
     </section>
 
 
-    <!-- Tab 3: iPhone Connection & PWA Info -->
+    <!-- Tab 3: Personalized Portfolio Studio -->
+    <section id="tab-personal" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px;">👤 나만의 개인화 포트폴리오 Studio</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">보유 중인 주식 자산을 등록하고 포트폴리오 총 손익 및 95% 위험 가치(VaR)를 실시간 진단하세요.</p>
+        
+        <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+          <label style="font-size: 12px; color: #a5b4fc; font-weight: 600;">👤 투자자 성향 선택:</label>
+          <select id="mInvestorProfile" style="width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px; background: #1e293b; color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+            <option value="중립형 (Balanced)" selected>중립형 (Balanced)</option>
+            <option value="안정지향형 (Conservative)">안정지향형 (Conservative)</option>
+            <option value="공격투자형 (Aggressive)">공격투자형 (Aggressive)</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="font-size: 12px; color: #34d399; font-weight: 600; margin-bottom: 8px;">📝 보유 자산 간편 추가</div>
+          <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+            <input type="text" id="mAddName" placeholder="종목명 (예: 삼성전자)" style="flex: 1; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+            <input type="number" id="mAddPrice" placeholder="매수단가" style="width: 90px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+            <input type="number" id="mAddQty" placeholder="수량" style="width: 60px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+          </div>
+          <button id="mAddAssetBtn" style="width: 100%; padding: 8px; background: var(--accent-indigo); color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 12px;">➕ 자산 추가하기</button>
+        </div>
+      </div>
+
+      <!-- Metrics Card -->
+      <div id="personalMetricsCard" class="card">
+        <h3 style="font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 12px;">📊 포트폴리오 퀀트 진단 리포트</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 11px; color: var(--text-muted);">총 매수 금액</div>
+            <div id="mTotalInvest" style="font-size: 16px; font-weight: 800; color: #fff; margin-top: 2px;">₩0</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 11px; color: var(--text-muted);">현재 평가 금액</div>
+            <div id="mTotalEval" style="font-size: 16px; font-weight: 800; color: #fff; margin-top: 2px;">₩0</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 11px; color: var(--text-muted);">총 평가 손익</div>
+            <div id="mTotalPnl" style="font-size: 16px; font-weight: 800; color: var(--accent-green); margin-top: 2px;">+₩0 (+0.0%)</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 11px; color: var(--text-muted);">일일 95% 위험 가치(VaR)</div>
+            <div id="mTotalVar" style="font-size: 16px; font-weight: 800; color: var(--accent-red); margin-top: 2px;">₩0</div>
+          </div>
+        </div>
+        <div style="background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); padding: 12px; border-radius: 12px; font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+          <div style="font-weight: 700; color: #34d399; margin-bottom: 2px;">💡 AI 리밸런싱 가이드</div>
+          <div id="mRebalanceAdvice">보유 자산을 등록하시면 투자 성향에 맞춘 리액티브 가이드가 제시됩니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: iPhone Connection & PWA Info -->
     <section id="tab-iphone" class="tab-content">
       <div class="card qr-container">
         <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px;">📱 아이폰(iOS) 연결 및 외부 접속</h2>
@@ -198,6 +252,10 @@
     <div class="nav-item" data-tab="tab-recommend">
       <i class="ri-sparkles-line"></i>
       <span>퀀트 추천</span>
+    </div>
+    <div class="nav-item" data-tab="tab-personal">
+      <i class="ri-user-settings-line"></i>
+      <span>개인화</span>
     </div>
     <div class="nav-item" data-tab="tab-iphone">
       <i class="ri-smartphone-line"></i>

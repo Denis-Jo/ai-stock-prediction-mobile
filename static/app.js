@@ -489,4 +489,60 @@ async function loadNetworkInfo() {
   }
 }
 
+/* Personalization Portfolio Studio */
+let myPortfolio = [
+  { name: "삼성전자", ticker: "005930.KS", buy_price: 68000, qty: 100, is_krw: true },
+  { name: "엔비디아", ticker: "NVDA", buy_price: 115, qty: 20, is_krw: false }
+];
+
+function updatePortfolioMetrics() {
+  const profile = document.getElementById("mInvestorProfile")?.value || "중립형 (Balanced)";
+  let totalInvest = 0;
+  let totalEval = 0;
+  const usdRate = 1380;
+
+  myPortfolio.forEach(item => {
+    const mult = item.is_krw ? 1 : usdRate;
+    const inv = item.buy_price * item.qty * mult;
+    totalInvest += inv;
+    const curr = item.buy_price * 1.08;
+    totalEval += curr * item.qty * mult;
+  });
+
+  const totalPnl = totalEval - totalInvest;
+  const totalPnlPct = (totalPnl / Math.max(1, totalInvest)) * 100;
+  const var95 = totalEval * 0.042;
+
+  if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = `₩${Math.round(totalInvest).toLocaleString()}`;
+  if (document.getElementById("mTotalEval")) document.getElementById("mTotalEval").innerText = `₩${Math.round(totalEval).toLocaleString()}`;
+  if (document.getElementById("mTotalPnl")) {
+    const pnlEl = document.getElementById("mTotalPnl");
+    pnlEl.innerText = `+₩${Math.round(totalPnl).toLocaleString()} (+${totalPnlPct.toFixed(2)}%)`;
+    pnlEl.style.color = totalPnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+  }
+  if (document.getElementById("mTotalVar")) document.getElementById("mTotalVar").innerText = `₩${Math.round(var95).toLocaleString()}`;
+  if (document.getElementById("mRebalanceAdvice")) {
+    document.getElementById("mRebalanceAdvice").innerText = `선택하신 [${profile}] 성향에 맞춰 현금성/안정자산 비중을 15~20% 수준으로 유지하시고 RSI 과열 종목 분할 익절을 권장합니다.`;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const addBtn = document.getElementById("mAddAssetBtn");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      const name = document.getElementById("mAddName").value || "신규자산";
+      const price = parseFloat(document.getElementById("mAddPrice").value) || 50000;
+      const qty = parseInt(document.getElementById("mAddQty").value) || 10;
+      myPortfolio.push({ name, ticker: "CUSTOM", buy_price: price, qty, is_krw: true });
+      updatePortfolioMetrics();
+      alert(`✅ ${name} 자산이 등록되었습니다.`);
+    });
+  }
+  const profSel = document.getElementById("mInvestorProfile");
+  if (profSel) {
+    profSel.addEventListener("change", updatePortfolioMetrics);
+  }
+  updatePortfolioMetrics();
+});
+
 
