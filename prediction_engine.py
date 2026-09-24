@@ -10,7 +10,7 @@ PERIOD_CONFIG = {
     "1w": {"interval": "1d", "steps": 5, "label": "1주", "period_name": "1주 (1 Week)"},
     "1m": {"interval": "1d", "steps": 20, "label": "1달", "period_name": "1달 (1 Month)"},
     "6m": {"interval": "1wk", "steps": 26, "label": "6개월", "period_name": "6개월 (6 Months)"},
-    "1y": {"interval": "1mo", "steps": 12, "label": "1년", "period_name": "1년 (1 Year)"}
+    "1y": {"interval": "1wk", "steps": 52, "label": "1년", "period_name": "1년 (1 Year)"}
 }
 
 class LightweightLSTMModel:
@@ -115,14 +115,27 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     download_end_str = today_dt.strftime("%Y-%m-%d") if base_date <= today_dt else train_end_str
     
     stock_data = load_stock_data(ticker, train_start_str, download_end_str, interval)
-    if stock_data.empty or len(stock_data) < 40:
+    
+    # 신규 상장주이거나 주기에 따른 수집 데이터 수가 부족한 경우 (40개 미만) 일별(1d) 데이터로 자동 폴백
+    train_data_check = stock_data.loc[:train_end_str] if not stock_data.empty else stock_data
+    if (stock_data.empty or len(train_data_check) < 40) and interval != "1d":
+        fallback_stock_data = load_stock_data(ticker, train_start_str, download_end_str, "1d")
+        fallback_check = fallback_stock_data.loc[:train_end_str] if not fallback_stock_data.empty else fallback_stock_data
+        if not fallback_stock_data.empty and len(fallback_check) > len(train_data_check):
+            stock_data = fallback_stock_data
+            interval = "1d"
+            if period_key == "1y":
+                forecast_steps = 250
+            elif period_key == "6m":
+                forecast_steps = 120
+
+    if stock_data.empty:
         return {"error": f"종목({ticker}) 시세 데이터가 부족하거나 조회할 수 없습니다."}
         
     train_data = stock_data.loc[:train_end_str]
-    if len(train_data) < 35:
+    if len(train_data) < 20:
         train_data = stock_data
 
-        
     close_prices_train = train_data['Close'].values.flatten()
     close_prices = stock_data['Close'].values.flatten()
     dates = [d.strftime("%Y-%m-%d") for d in stock_data.index]
@@ -132,11 +145,16 @@ def run_monte_carlo_prediction(ticker: str, period_key: str = "1m", base_date_st
     is_krw = len(ticker_prefix) == 6 and ticker_prefix.isdigit() or ticker.endswith(".KS") or ticker.endswith(".KQ")
     currency_symbol = "₩" if is_krw else "$"
     
-    window_size = 30
+    target_window = 30
+    if len(close_prices_train) > 10:
+        window_size = min(target_window, max(5, (len(close_prices_train) - 5) // 2))
+    else:
+        window_size = target_window
+
     log_returns_train = np.log(close_prices_train[1:] / close_prices_train[:-1])
     
     if len(log_returns_train) <= window_size:
-        return {"error": "학습에 필요한 최소 데이터 수가 부족합니다."}
+        return {"error": f"선택하신 분석 기준 시점까지의 주가 거래 데이터 수가 부족합니다. (최소 {window_size+1}개 필요, 현재 {len(close_prices_train)}개)"}
         
     x_train = []
     y_train = []

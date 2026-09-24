@@ -124,8 +124,12 @@ def analyze_stock_indicators(name: str, ticker: str, df: pd.DataFrame, is_krw: b
     x_vals = np.arange(len(y_vals))
     slope, intercept = np.polyfit(x_vals, y_vals, 1)
     slope_pct = (slope / current_price) * 100
-    
-    predicted_return = slope_pct * forecast_days
+    if forecast_days >= 200:
+        predicted_return = slope_pct * (forecast_days ** 0.65) * 2.2
+    elif forecast_days >= 100:
+        predicted_return = slope_pct * (forecast_days ** 0.75) * 1.5
+    else:
+        predicted_return = slope_pct * forecast_days
     
     reasons = []
     score_modifier = 0.0
