@@ -495,34 +495,160 @@ let myPortfolio = [
   { name: "엔비디아", ticker: "NVDA", buy_price: 115, qty: 20, is_krw: false }
 ];
 
-function updatePortfolioMetrics() {
-  const profile = document.getElementById("mInvestorProfile")?.value || "중립형 (Balanced)";
-  let totalInvest = 0;
-  let totalEval = 0;
-  const usdRate = 1380;
+function deleteAsset(index) {
+  if (index >= 0 && index < myPortfolio.length) {
+    const deletedName = myPortfolio[index].name;
+    myPortfolio.splice(index, 1);
+    updatePortfolioMetrics();
+  }
+}
 
+function clearAllAssets() {
+  if (confirm("등록된 모든 자산을 삭제하시겠습니까?")) {
+    myPortfolio = [];
+    updatePortfolioMetrics();
+  }
+}
+
+function renderHoldingsList(holdings) {
+  const container = document.getElementById("mHoldingsListContainer");
+  if (!container) return;
+
+  if (!myPortfolio || myPortfolio.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">
+        등록된 자산이 없습니다. 위에서 보유 종목을 추가해 주세요.
+      </div>
+    `;
+    return;
+  }
+
+  const usdRate = 1380;
+  let totalEval = 0;
   myPortfolio.forEach(item => {
     const mult = item.is_krw ? 1 : usdRate;
-    const inv = item.buy_price * item.qty * mult;
-    totalInvest += inv;
-    const curr = item.buy_price * 1.08;
-    totalEval += curr * item.qty * mult;
+    totalEval += (item.buy_price * 1.08) * item.qty * mult;
   });
 
-  const totalPnl = totalEval - totalInvest;
-  const totalPnlPct = (totalPnl / Math.max(1, totalInvest)) * 100;
-  const var95 = totalEval * 0.042;
+  container.innerHTML = myPortfolio.map((item, idx) => {
+    const symbol = item.is_krw ? "₩" : "$";
+    const mult = item.is_krw ? 1 : usdRate;
+    const invest = item.buy_price * item.qty * mult;
+    const currPrice = item.buy_price * (idx % 2 === 0 ? 1.085 : 0.94);
+    const evalVal = currPrice * item.qty * mult;
+    const pnl = evalVal - invest;
+    const pnlPct = (pnl / Math.max(1, invest)) * 100;
+    const weightPct = ((evalVal / Math.max(1, totalEval)) * 100).toFixed(1);
+    const pnlColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 
-  if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = `₩${Math.round(totalInvest).toLocaleString()}`;
-  if (document.getElementById("mTotalEval")) document.getElementById("mTotalEval").innerText = `₩${Math.round(totalEval).toLocaleString()}`;
-  if (document.getElementById("mTotalPnl")) {
-    const pnlEl = document.getElementById("mTotalPnl");
-    pnlEl.innerText = `+₩${Math.round(totalPnl).toLocaleString()} (+${totalPnlPct.toFixed(2)}%)`;
-    pnlEl.style.color = totalPnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+    return `
+      <div style="background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); padding: 10px 12px; border-radius: 10px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-weight: 700; font-size: 14px; color: #fff;">${item.name}</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px; font-family: monospace;">${item.ticker}</span>
+          </div>
+          <button onclick="deleteAsset(${idx})" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: none; padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer;">❌ 삭제</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: #cbd5e1;">
+          <span>매수단가: ${symbol}${item.buy_price.toLocaleString()} (${item.qty}주)</span>
+          <span style="color: #a5b4fc; font-weight: 600;">비중 ${weightPct}%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px;">
+          <span style="color: var(--text-muted);">평가금액: ₩${Math.round(evalVal).toLocaleString()}</span>
+          <span style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}₩${Math.round(pnl).toLocaleString()} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function updatePortfolioMetrics() {
+  const profile = document.getElementById("mInvestorProfile")?.value || "중립형 (Balanced)";
+
+  // Render Asset Holdings List Card UI first
+  renderHoldingsList();
+
+  if (!myPortfolio || myPortfolio.length === 0) {
+    if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = "₩0";
+    if (document.getElementById("mTotalEval")) document.getElementById("mTotalEval").innerText = "₩0";
+    if (document.getElementById("mTotalPnl")) document.getElementById("mTotalPnl").innerText = "₩0 (+0.0%)";
+    if (document.getElementById("mTotalVar")) document.getElementById("mTotalVar").innerText = "₩0";
+    if (document.getElementById("mHealthBadge")) document.getElementById("mHealthBadge").innerText = "건강도 0점 (N/A)";
+    if (document.getElementById("qVar99")) document.getElementById("qVar99").innerText = "₩0";
+    if (document.getElementById("macroStressContainer")) document.getElementById("macroStressContainer").innerHTML = '<div style="font-size:11px; color:var(--text-muted);">자산을 추가해 주세요.</div>';
+    if (document.getElementById("rebalancePlanContainer")) document.getElementById("rebalancePlanContainer").innerHTML = '<div style="font-size:11px; color:var(--text-muted);">자산을 추가해 주세요.</div>';
+    if (document.getElementById("mRebalanceAdvice")) document.getElementById("mRebalanceAdvice").innerText = "보유 자산을 등록하시면 투자 성향에 맞춘 AI 퀀트 리밸런싱 가이드가 생성됩니다.";
+    return;
   }
-  if (document.getElementById("mTotalVar")) document.getElementById("mTotalVar").innerText = `₩${Math.round(var95).toLocaleString()}`;
-  if (document.getElementById("mRebalanceAdvice")) {
-    document.getElementById("mRebalanceAdvice").innerText = `선택하신 [${profile}] 성향에 맞춰 현금성/안정자산 비중을 15~20% 수준으로 유지하시고 RSI 과열 종목 분할 익절을 권장합니다.`;
+
+  try {
+    const res = await fetchWithTimeout('/api/portfolio/diagnose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: myPortfolio, profile })
+    }, 5000);
+
+    const data = await res.json();
+
+    // Render Metrics
+    if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = `₩${data.total_invest_krw.toLocaleString()}`;
+    if (document.getElementById("mTotalEval")) document.getElementById("mTotalEval").innerText = `₩${data.total_eval_krw.toLocaleString()}`;
+    if (document.getElementById("mTotalPnl")) {
+      const pnlEl = document.getElementById("mTotalPnl");
+      pnlEl.innerText = `${data.total_pnl_krw >= 0 ? '+' : ''}₩${data.total_pnl_krw.toLocaleString()} (${data.total_pnl_pct >= 0 ? '+' : ''}${data.total_pnl_pct}%)`;
+      pnlEl.style.color = data.total_pnl_krw >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+    }
+    if (document.getElementById("mTotalVar")) document.getElementById("mTotalVar").innerText = `₩${data.var_95_krw.toLocaleString()}`;
+
+    // Institutional Quantitative Metrics
+    if (document.getElementById("mHealthBadge")) document.getElementById("mHealthBadge").innerText = `건강도 ${data.health_score}점 (${data.health_grade})`;
+    if (document.getElementById("qVol")) document.getElementById("qVol").innerText = `${data.volatility_pct}%`;
+    if (document.getElementById("qSharpe")) document.getElementById("qSharpe").innerText = `${data.sharpe_ratio}`;
+    if (document.getElementById("qSortino")) document.getElementById("qSortino").innerText = `${data.sortino_ratio}`;
+    if (document.getElementById("qMdd")) document.getElementById("qMdd").innerText = `${data.mdd_pct}%`;
+    if (document.getElementById("qBeta")) document.getElementById("qBeta").innerText = `${data.portfolio_beta}`;
+    if (document.getElementById("qVar99")) document.getElementById("qVar99").innerText = `₩${data.var_99_krw.toLocaleString()}`;
+
+    // Macro Stress Test Render
+    const macroEl = document.getElementById("macroStressContainer");
+    if (macroEl && data.macro_stress) {
+      macroEl.innerHTML = Object.values(data.macro_stress).map(m => {
+        const isLoss = m.impact_pct < 0;
+        const col = isLoss ? "var(--accent-red)" : "var(--accent-green)";
+        return `
+          <div style="background: rgba(255,255,255,0.02); border-left: 3px solid ${col}; padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; font-size: 11.5px;">
+            <div style="display: flex; justify-content: space-between; font-weight: 700;">
+              <span>${m.title}</span>
+              <span style="color: ${col};">${m.impact_pct > 0 ? '+' : ''}${m.impact_pct}% (${m.loss_krw > 0 ? '+' : ''}₩${m.loss_krw.toLocaleString()})</span>
+            </div>
+            <div style="color: var(--text-muted); font-size: 10.5px; margin-top: 2px;">${m.desc}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Rebalancing Plan Render
+    const planEl = document.getElementById("rebalancePlanContainer");
+    if (planEl && data.rebalancing_plan) {
+      planEl.innerHTML = data.rebalancing_plan.map(p => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; font-size: 11.5px;">
+          <div>
+            <span style="font-weight: 700; color: #fff;">${p.name}</span>
+            <span style="color: var(--text-muted); font-size: 10.5px;"> (${p.curr_weight}% → ${p.target_weight}%)</span>
+          </div>
+          <span style="font-size: 11px; font-weight: 700; color: ${p.action.includes('매도') ? '#f87171' : (p.action.includes('매수') ? '#34d399' : '#a5b4fc')};">${p.action}</span>
+        </div>
+      `).join("");
+    }
+
+    // Analyst Commentary
+    if (document.getElementById("mRebalanceAdvice")) {
+      document.getElementById("mRebalanceAdvice").innerHTML = data.analyst_report.replace(/\n/g, '<br>');
+    }
+
+  } catch (err) {
+    console.error("Diagnosis error:", err);
   }
 }
 
@@ -530,19 +656,33 @@ document.addEventListener("DOMContentLoaded", () => {
   const addBtn = document.getElementById("mAddAssetBtn");
   if (addBtn) {
     addBtn.addEventListener("click", () => {
-      const name = document.getElementById("mAddName").value || "신규자산";
+      const name = document.getElementById("mAddName").value.trim() || "신규자산";
       const price = parseFloat(document.getElementById("mAddPrice").value) || 50000;
       const qty = parseInt(document.getElementById("mAddQty").value) || 10;
-      myPortfolio.push({ name, ticker: "CUSTOM", buy_price: price, qty, is_krw: true });
+      const isKrw = !(/[a-zA-Z]/.test(name));
+      
+      myPortfolio.push({ name, ticker: isKrw ? "005930.KS" : "NVDA", buy_price: price, qty, is_krw: isKrw });
+      
+      document.getElementById("mAddName").value = "";
+      document.getElementById("mAddPrice").value = "";
+      document.getElementById("mAddQty").value = "";
+
       updatePortfolioMetrics();
-      alert(`✅ ${name} 자산이 등록되었습니다.`);
     });
   }
+
+  const clearBtn = document.getElementById("mClearAssetsBtn");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", clearAllAssets);
+  }
+
   const profSel = document.getElementById("mInvestorProfile");
   if (profSel) {
     profSel.addEventListener("change", updatePortfolioMetrics);
   }
+
   updatePortfolioMetrics();
 });
+
 
 
