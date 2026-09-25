@@ -497,7 +497,6 @@ let myPortfolio = [
 
 function deleteAsset(index) {
   if (index >= 0 && index < myPortfolio.length) {
-    const deletedName = myPortfolio[index].name;
     myPortfolio.splice(index, 1);
     updatePortfolioMetrics();
   }
@@ -514,7 +513,7 @@ function renderHoldingsList(holdings) {
   const container = document.getElementById("mHoldingsListContainer");
   if (!container) return;
 
-  if (!myPortfolio || myPortfolio.length === 0) {
+  if (!holdings || holdings.length === 0) {
     container.innerHTML = `
       <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">
         등록된 자산이 없습니다. 위에서 보유 종목을 추가해 주세요.
@@ -523,40 +522,27 @@ function renderHoldingsList(holdings) {
     return;
   }
 
-  const usdRate = 1380;
-  let totalEval = 0;
-  myPortfolio.forEach(item => {
-    const mult = item.is_krw ? 1 : usdRate;
-    totalEval += (item.buy_price * 1.08) * item.qty * mult;
-  });
-
-  container.innerHTML = myPortfolio.map((item, idx) => {
-    const symbol = item.is_krw ? "₩" : "$";
-    const mult = item.is_krw ? 1 : usdRate;
-    const invest = item.buy_price * item.qty * mult;
-    const currPrice = item.buy_price * (idx % 2 === 0 ? 1.085 : 0.94);
-    const evalVal = currPrice * item.qty * mult;
-    const pnl = evalVal - invest;
-    const pnlPct = (pnl / Math.max(1, invest)) * 100;
-    const weightPct = ((evalVal / Math.max(1, totalEval)) * 100).toFixed(1);
-    const pnlColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+  container.innerHTML = holdings.map((h, idx) => {
+    const symbol = h.is_krw ? "₩" : "$";
+    const pnlColor = h.pnl_krw >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+    const pnlSign = h.pnl_krw >= 0 ? "+" : "";
 
     return `
       <div style="background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); padding: 10px 12px; border-radius: 10px; margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <span style="font-weight: 700; font-size: 14px; color: #fff;">${item.name}</span>
-            <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px; font-family: monospace;">${item.ticker}</span>
+            <span style="font-weight: 700; font-size: 14px; color: #fff;">${h.name}</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px; font-family: monospace;">${h.ticker}</span>
           </div>
           <button onclick="deleteAsset(${idx})" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: none; padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer;">❌ 삭제</button>
         </div>
         <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: #cbd5e1;">
-          <span>매수단가: ${symbol}${item.buy_price.toLocaleString()} (${item.qty}주)</span>
-          <span style="color: #a5b4fc; font-weight: 600;">비중 ${weightPct}%</span>
+          <span>매수단가: ${symbol}${h.buy_price.toLocaleString()} (${h.qty}주)</span>
+          <span style="color: #a5b4fc; font-weight: 600;">비중 ${h.weight_pct}%</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px;">
-          <span style="color: var(--text-muted);">평가금액: ₩${Math.round(evalVal).toLocaleString()}</span>
-          <span style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}₩${Math.round(pnl).toLocaleString()} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span>
+          <span style="color: var(--text-muted);">평가금액: ₩${h.eval_krw.toLocaleString()}</span>
+          <span style="color: ${pnlColor}; font-weight: 700;">${pnlSign}₩${h.pnl_krw.toLocaleString()} (${pnlSign}${h.pnl_pct}%)</span>
         </div>
       </div>
     `;
@@ -566,10 +552,8 @@ function renderHoldingsList(holdings) {
 async function updatePortfolioMetrics() {
   const profile = document.getElementById("mInvestorProfile")?.value || "중립형 (Balanced)";
 
-  // Render Asset Holdings List Card UI first
-  renderHoldingsList();
-
   if (!myPortfolio || myPortfolio.length === 0) {
+    renderHoldingsList([]);
     if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = "₩0";
     if (document.getElementById("mTotalEval")) document.getElementById("mTotalEval").innerText = "₩0";
     if (document.getElementById("mTotalPnl")) document.getElementById("mTotalPnl").innerText = "₩0 (+0.0%)";
@@ -590,6 +574,9 @@ async function updatePortfolioMetrics() {
     }, 5000);
 
     const data = await res.json();
+
+    // Render Holdings List directly from Backend Calculated Data (100% Synchronized)
+    renderHoldingsList(data.holdings);
 
     // Render Metrics
     if (document.getElementById("mTotalInvest")) document.getElementById("mTotalInvest").innerText = `₩${data.total_invest_krw.toLocaleString()}`;
@@ -657,11 +644,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (addBtn) {
     addBtn.addEventListener("click", () => {
       const name = document.getElementById("mAddName").value.trim() || "신규자산";
+      const currSel = document.getElementById("mAddCurrency")?.value || "KRW";
       const price = parseFloat(document.getElementById("mAddPrice").value) || 50000;
       const qty = parseInt(document.getElementById("mAddQty").value) || 10;
-      const isKrw = !(/[a-zA-Z]/.test(name));
+      const isKrw = currSel === "KRW";
       
-      myPortfolio.push({ name, ticker: isKrw ? "005930.KS" : "NVDA", buy_price: price, qty, is_krw: isKrw });
+      myPortfolio.push({ name, ticker: name.toUpperCase(), buy_price: price, qty, is_krw: isKrw });
       
       document.getElementById("mAddName").value = "";
       document.getElementById("mAddPrice").value = "";

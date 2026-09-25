@@ -174,9 +174,13 @@
         <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
           <div style="font-size: 12px; color: #34d399; font-weight: 600; margin-bottom: 8px;">📝 보유 자산 간편 추가</div>
           <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-            <input type="text" id="mAddName" placeholder="종목명 (예: 삼성전자)" style="flex: 1; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
-            <input type="number" id="mAddPrice" placeholder="매수단가" style="width: 90px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
-            <input type="number" id="mAddQty" placeholder="수량" style="width: 60px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+            <input type="text" id="mAddName" placeholder="종목명 (예: 삼성전자, NVDA)" style="flex: 1.2; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+            <select id="mAddCurrency" style="width: 75px; padding: 8px; background: #0f172a; color: #a5b4fc; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px; font-weight: 600;">
+              <option value="KRW">₩ 원화</option>
+              <option value="USD">$ 달러</option>
+            </select>
+            <input type="number" id="mAddPrice" placeholder="매수단가" style="flex: 1; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+            <input type="number" id="mAddQty" placeholder="수량" style="width: 55px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
           </div>
           <button id="mAddAssetBtn" style="width: 100%; padding: 8px; background: var(--accent-indigo); color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer;">➕ 자산 추가하기</button>
         </div>
