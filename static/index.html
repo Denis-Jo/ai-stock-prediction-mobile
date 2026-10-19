@@ -171,20 +171,57 @@
           </select>
         </div>
 
-        <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-          <div style="font-size: 12px; color: #34d399; font-weight: 600; margin-bottom: 8px;">📝 보유 자산 간편 추가</div>
-          <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-            <input type="text" id="mAddName" placeholder="종목명 (예: 삼성전자, NVDA)" style="flex: 1.2; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
-            <select id="mAddCurrency" style="width: 75px; padding: 8px; background: #0f172a; color: #a5b4fc; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px; font-weight: 600;">
-              <option value="KRW">₩ 원화</option>
-              <option value="USD">$ 달러</option>
-            </select>
-            <input type="number" id="mAddPrice" placeholder="매수단가" style="flex: 1; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
-            <input type="number" id="mAddQty" placeholder="수량" style="width: 55px; padding: 8px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px;">
+        <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 13px; color: #34d399; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+              <i class="ri-add-circle-line"></i> <span>보유 자산 간편 추가</span>
+            </div>
+            <span id="mSelectedTickerBadge" style="font-size: 11px; color: #a5b4fc; background: rgba(99,102,241,0.2); padding: 2px 8px; border-radius: 6px; font-family: monospace; display: none;"></span>
           </div>
-          <button id="mAddAssetBtn" style="width: 100%; padding: 8px; background: var(--accent-indigo); color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer;">➕ 자산 추가하기</button>
+
+          <!-- Quick Add Chips -->
+          <div style="display: flex; gap: 5px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; scrollbar-width: none;">
+            <button type="button" class="quick-chip-btn" onclick="quickSelectAsset('삼성전자', '005930.KS', 'KRW')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; border-radius: 12px; padding: 4px 10px; font-size: 11px; white-space: nowrap; cursor: pointer;">+ 삼성전자</button>
+            <button type="button" class="quick-chip-btn" onclick="quickSelectAsset('SK하이닉스', '000660.KS', 'KRW')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; border-radius: 12px; padding: 4px 10px; font-size: 11px; white-space: nowrap; cursor: pointer;">+ SK하이닉스</button>
+            <button type="button" class="quick-chip-btn" onclick="quickSelectAsset('엔비디아 (NVIDIA)', 'NVDA', 'USD')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; border-radius: 12px; padding: 4px 10px; font-size: 11px; white-space: nowrap; cursor: pointer;">+ 엔비디아</button>
+            <button type="button" class="quick-chip-btn" onclick="quickSelectAsset('애플 (Apple)', 'AAPL', 'USD')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; border-radius: 12px; padding: 4px 10px; font-size: 11px; white-space: nowrap; cursor: pointer;">+ 애플</button>
+            <button type="button" class="quick-chip-btn" onclick="quickSelectAsset('테슬라 (Tesla)', 'TSLA', 'USD')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; border-radius: 12px; padding: 4px 10px; font-size: 11px; white-space: nowrap; cursor: pointer;">+ 테슬라</button>
+          </div>
+
+          <!-- Stock Search Input with Autocomplete Dropdown -->
+          <div style="position: relative; margin-bottom: 8px;">
+            <div style="position: relative;">
+              <i class="ri-search-line" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px;"></i>
+              <input type="text" id="mAddName" placeholder="종목명 또는 티커 검색 (예: 현대차, AAPL)" autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 10px 10px 10px 32px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 13px;">
+            </div>
+            <div id="mAddDropdown" class="search-results-dropdown" style="top: calc(100% + 4px);"></div>
+          </div>
+
+          <!-- Currency, Price, Qty Inputs -->
+          <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+            <div>
+              <label style="font-size: 10.5px; color: var(--text-muted); display: block; margin-bottom: 2px;">통화</label>
+              <select id="mAddCurrency" style="width: 100%; box-sizing: border-box; padding: 9px 4px; background: #0f172a; color: #a5b4fc; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 12px; font-weight: 700;">
+                <option value="KRW">₩ 원화</option>
+                <option value="USD">$ 달러</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 10.5px; color: var(--text-muted); display: block; margin-bottom: 2px;">매수단가</label>
+              <input type="number" id="mAddPrice" placeholder="매수단가" style="width: 100%; box-sizing: border-box; padding: 9px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 13px;">
+            </div>
+            <div>
+              <label style="font-size: 10.5px; color: var(--text-muted); display: block; margin-bottom: 2px;">보유수량</label>
+              <input type="number" id="mAddQty" placeholder="수량" style="width: 100%; box-sizing: border-box; padding: 9px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 13px;">
+            </div>
+          </div>
+
+          <button id="mAddAssetBtn" style="width: 100%; padding: 11px; background: linear-gradient(90deg, var(--accent-indigo), var(--accent-purple)); color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);">
+            <i class="ri-add-line"></i> <span>자산 추가하기</span>
+          </button>
         </div>
       </div>
+
 
       <!-- Registered Assets List Card (New) -->
       <div id="mHoldingsListCard" class="card">

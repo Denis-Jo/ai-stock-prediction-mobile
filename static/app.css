@@ -431,3 +431,16 @@ body {
   margin: 16px 0;
 }
 
+/* Quick Chip Buttons */
+.quick-chip-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+.quick-chip-btn:hover, .quick-chip-btn:active {
+  background: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(129, 140, 248, 0.4) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
+

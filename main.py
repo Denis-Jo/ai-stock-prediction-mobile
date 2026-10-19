@@ -1,12 +1,18 @@
 import os
+import time
+import threading
 import socket
+from concurrent.futures import ThreadPoolExecutor
+import yfinance as yf
+import numpy as np
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from quant_engine import search_stock_list, get_quant_recommendations
+from quant_engine import search_stock_list, get_quant_recommendations, COMPANY_TICKERS
 from prediction_engine import run_monte_carlo_prediction
+
 
 app = FastAPI(
     title="AI 기반 주식 예측 및 추천 모바일 API",
@@ -88,20 +94,72 @@ def resolve_item_info(item: dict):
 
     return matched_name, matched_ticker, is_krw
 
-def fetch_stock_current_price(ticker: str, buy_price: float) -> float:
-    """yfinance를 통한 실시간 실제 시세 조회 (실패 시 5% 상승 모의 시세)"""
-    if ticker and ticker != "CUSTOM":
-        try:
-            df = yf.download(ticker, period="5d", progress=False)
-            if not df.empty and "Close" in df:
-                closes = df["Close"].values.flatten()
-                if len(closes) > 0 and not np.isnan(closes[-1]):
-                    return float(closes[-1])
-        except Exception:
-            pass
-    return float(buy_price * 1.05)
+_PRICE_CACHE = {}
+_PRICE_CACHE_LOCK = threading.Lock()
+PRICE_CACHE_TTL = 600  # 10분 캐시
+
+def fetch_stock_current_price(ticker: str, buy_price: float = 0.0) -> float:
+    """yfinance를 통한 실시간 실제 시세 조회 (인메모리 캐싱 및 고속 응답)"""
+    if not ticker or ticker == "CUSTOM":
+        return float(buy_price * 1.05) if buy_price > 0 else 50000.0
+
+    now = time.time()
+    with _PRICE_CACHE_LOCK:
+        if ticker in _PRICE_CACHE:
+            ts, p = _PRICE_CACHE[ticker]
+            if now - ts < PRICE_CACHE_TTL:
+                return p
+
+    try:
+        df = yf.download(ticker, period="5d", progress=False)
+        if not df.empty and "Close" in df:
+            closes = df["Close"].values.flatten()
+            if len(closes) > 0 and not np.isnan(closes[-1]):
+                curr_price = float(closes[-1])
+                with _PRICE_CACHE_LOCK:
+                    _PRICE_CACHE[ticker] = (now, curr_price)
+                return curr_price
+    except Exception as e:
+        pass
+
+    fallback_price = float(buy_price * 1.05) if buy_price > 0 else 50000.0
+    return fallback_price
+
+@app.get("/api/stocks/quote")
+def api_stock_quote(ticker: str = Query(..., description="주식 티커 또는 종목명")):
+    """종목 단건 실시간 시세 및 통화/정보 조회 API"""
+    matched_name = ticker
+    matched_ticker = ticker
+    is_krw = True
+    
+    # 1. 내장 종목 매칭
+    for k, v in COMPANY_TICKERS.items():
+        if ticker.lower() in k.lower() or ticker.upper() == v.upper():
+            matched_name = k
+            matched_ticker = v
+            is_krw = v.endswith(".KS") or v.endswith(".KQ")
+            break
+            
+    # 통화 판단
+    if matched_ticker.endswith(".KS") or matched_ticker.endswith(".KQ"):
+        is_krw = True
+    elif not matched_ticker.endswith(".KS") and not matched_ticker.endswith(".KQ") and any(c.isalpha() for c in matched_ticker):
+        # 미국/해외 알파벳 티커인 경우
+        if not (len(matched_ticker) == 6 and matched_ticker.isdigit()):
+            is_krw = False
+            
+    curr_price = fetch_stock_current_price(matched_ticker)
+    
+    return {
+        "name": matched_name,
+        "ticker": matched_ticker,
+        "is_krw": is_krw,
+        "currency": "KRW" if is_krw else "USD",
+        "current_price": round(curr_price, 2 if not is_krw else 0)
+    }
 
 @app.post("/api/portfolio/diagnose")
+
 def api_diagnose_portfolio(payload: dict):
     """모바일 개인화 포트폴리오 퀀트 리스크 및 AI 리밸런싱 진단 API (정확한 금액/비중 계산)"""
     items = payload.get("items", [])
@@ -134,19 +192,38 @@ def api_diagnose_portfolio(payload: dict):
     total_eval_krw = 0.0
     usd_rate = 1380.0
     
-    # 1차 루프: 정확한 매수금액 및 실시간 평가액 산출
-    raw_holdings = []
+    # 1단계: 메타 정보 해석 및 시세 병렬 조회 준비
+    parsed_items = []
+    tickers_to_fetch = []
     for idx, item in enumerate(items):
         name, ticker, is_krw = resolve_item_info(item)
         buy_price = float(item.get("buy_price", 0))
         qty = float(item.get("qty", 0))
-        mult = 1.0 if is_krw else usd_rate
+        parsed_items.append((idx, name, ticker, is_krw, buy_price, qty))
+        tickers_to_fetch.append((ticker, buy_price))
         
+    # 병렬 시세 조회 (동시 5스레드)
+    prices_map = {}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(tickers_to_fetch)))) as executor:
+        futures = {executor.submit(fetch_stock_current_price, t, bp): t for t, bp in tickers_to_fetch}
+        for future in futures:
+            t = futures[future]
+            try:
+                prices_map[t] = future.result()
+            except Exception:
+                prices_map[t] = 0.0
+
+    raw_holdings = []
+    for idx, name, ticker, is_krw, buy_price, qty in parsed_items:
+        mult = 1.0 if is_krw else usd_rate
         inv = buy_price * qty * mult
         total_invest_krw += inv
         
-        # 실시간 또는 안정적 시세 조회
-        curr_price = fetch_stock_current_price(ticker, buy_price)
+        curr_price = prices_map.get(ticker, 0.0)
+        if curr_price <= 0:
+            curr_price = float(buy_price * 1.05) if buy_price > 0 else 50000.0
+            
         eval_v = curr_price * qty * mult
         total_eval_krw += eval_v
         
@@ -166,6 +243,7 @@ def api_diagnose_portfolio(payload: dict):
             "pnl_krw": round(pnl),
             "pnl_pct": round(pnl_pct, 2)
         })
+
         
     total_pnl_krw = total_eval_krw - total_invest_krw
     total_pnl_pct = (total_pnl_krw / max(1.0, total_invest_krw)) * 100.0
@@ -290,7 +368,7 @@ def start_public_tunnel():
                 match = re.search(r'https://[a-zA-Z0-9\.\-]+\.lhr\.life', line)
                 if match:
                     public_tunnel_url = match.group(0)
-                    print(f"\n[🌐 PUBLIC TUNNEL ACTIVE] LTE/5G Public HTTPS URL: {public_tunnel_url}\n")
+                    print(f"\n[PUBLIC TUNNEL ACTIVE] LTE/5G Public HTTPS URL: {public_tunnel_url}\n")
                     break
     except Exception as e:
         print(f"Tunnel start error: {e}")
