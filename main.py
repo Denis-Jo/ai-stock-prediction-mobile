@@ -158,7 +158,48 @@ def api_stock_quote(ticker: str = Query(..., description="주식 티커 또는 �
         "current_price": round(curr_price, 2 if not is_krw else 0)
     }
 
+# 사용자별 개인화 포트폴리오 저장 디렉토리
+USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data")
+if not os.path.exists(USER_DATA_DIR):
+    os.makedirs(USER_DATA_DIR)
+
+def get_user_portfolio_path(user_id: str) -> str:
+    # 안전한 파일명 생성 (영숫자 및 하이픈만 허용)
+    safe_id = "".join(c for c in user_id if c.isalnum() or c in "-_")[:64] or "default"
+    return os.path.join(USER_DATA_DIR, f"portfolio_{safe_id}.json")
+
+@app.get("/api/portfolio/user/{user_id}")
+def api_get_user_portfolio(user_id: str):
+    """사용자별 독립 포트폴리오 조회 API"""
+    path = get_user_portfolio_path(user_id)
+    if os.path.exists(path):
+        try:
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {"items": data.get("items", []), "profile": data.get("profile", "중립형 (Balanced)")}
+        except Exception as e:
+            pass
+    return {"items": [], "profile": "중립형 (Balanced)"}
+
+@app.post("/api/portfolio/user/{user_id}")
+def api_save_user_portfolio(user_id: str, payload: dict):
+    """사용자별 독립 포트폴리오 영구 저장 API"""
+    path = get_user_portfolio_path(user_id)
+    try:
+        import json
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({
+                "items": payload.get("items", []),
+                "profile": payload.get("profile", "중립형 (Balanced)"),
+                "updated_at": time.time()
+            }, f, ensure_ascii=False, indent=2)
+        return {"status": "ok", "saved_count": len(payload.get("items", []))}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.post("/api/portfolio/diagnose")
+
 
 def api_diagnose_portfolio(payload: dict):
     """모바일 개인화 포트폴리오 퀀트 리스크 및 AI 리밸런싱 진단 API (정확한 금액/비중 계산)"""

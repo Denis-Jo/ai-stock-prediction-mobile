@@ -492,24 +492,34 @@ async function loadNetworkInfo() {
 /* ==============================================================================
    Personalization Portfolio Studio (개인화 포트폴리오 스튜디오)
    ============================================================================== */
-const PORTFOLIO_STORAGE_KEY = "my_stock_portfolio_v2";
+const PORTFOLIO_STORAGE_KEY = "my_stock_portfolio_v3";
 
-const DEFAULT_PORTFOLIO = [
-  { name: "삼성전자", ticker: "005930.KS", buy_price: 68000, qty: 100, is_krw: true },
-  { name: "엔비디아 (NVIDIA)", ticker: "NVDA", buy_price: 115, qty: 20, is_krw: false }
-];
+// 디바이스별 고유 사용자 ID 생성 및 관리 (개인별 완전 격리)
+function getOrCreateUserId() {
+  let uid = localStorage.getItem("ai_stock_user_id");
+  if (!uid) {
+    uid = "usr_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    try {
+      localStorage.setItem("ai_stock_user_id", uid);
+    } catch (e) {}
+  }
+  return uid;
+}
 
+const currentUserId = getOrCreateUserId();
+
+// 로컬 저장소에서 불러오기 (초기값은 빈 배열이며, 임의의 기본 자산을 강제 주입하지 않음)
 function loadPortfolioFromStorage() {
   try {
     const raw = localStorage.getItem(PORTFOLIO_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error("Storage load error:", e);
   }
-  return DEFAULT_PORTFOLIO.slice();
+  return []; // 완전 빈 상태로 시작 (다른 사람이 보거나 임의 자산이 부활하지 않음)
 }
 
 function savePortfolioToStorage() {
@@ -518,10 +528,32 @@ function savePortfolioToStorage() {
   } catch (e) {
     console.error("Storage save error:", e);
   }
+
+  // 서버의 사용자별 독립 공간에도 비동기 백업/동기화
+  try {
+    const profile = document.getElementById("mInvestorProfile")?.value || "중립형 (Balanced)";
+    fetch(`/api/portfolio/user/${currentUserId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: myPortfolio, profile })
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 let myPortfolio = loadPortfolioFromStorage();
 let selectedAddTicker = "";
+
+// 사용자가 원할 때만 예시 샘플 자산 불러오기
+function loadSampleAssets() {
+  myPortfolio = [
+    { name: "삼성전자", ticker: "005930.KS", buy_price: 68000, qty: 100, is_krw: true },
+    { name: "엔비디아 (NVIDIA)", ticker: "NVDA", buy_price: 115, qty: 20, is_krw: false }
+  ];
+  savePortfolioToStorage();
+  updatePortfolioMetrics();
+  showPersonalToast("💡 예시 샘플 자산(삼성전자, 엔비디아)이 추가되었습니다!", "success");
+}
+
 
 // Toast Notification
 function showPersonalToast(message, type = "info") {
@@ -973,14 +1005,37 @@ document.addEventListener("DOMContentLoaded", () => {
     clearBtn.addEventListener("click", clearAllAssets);
   }
 
+  const sampleBtn = document.getElementById("mLoadSampleBtn");
+  if (sampleBtn) {
+    sampleBtn.addEventListener("click", loadSampleAssets);
+  }
+
   const profSel = document.getElementById("mInvestorProfile");
   if (profSel) {
-    profSel.addEventListener("change", updatePortfolioMetrics);
+    profSel.addEventListener("change", () => {
+      savePortfolioToStorage();
+      updatePortfolioMetrics();
+    });
+  }
+
+  // 서버에 저장된 사용자별 포트폴리오가 있다면 비동기 동기화 (로컬스토리지에 없을 때)
+  if (myPortfolio.length === 0) {
+    fetchWithTimeout(`/api/portfolio/user/${currentUserId}`, {}, 3000)
+      .then(res => res.json())
+      .then(data => {
+        if (data.items && data.items.length > 0 && myPortfolio.length === 0) {
+          myPortfolio = data.items;
+          savePortfolioToStorage();
+          updatePortfolioMetrics();
+        }
+      })
+      .catch(() => {});
   }
 
   // 초기 렌더링
   updatePortfolioMetrics();
 });
+
 
 
 

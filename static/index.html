@@ -18,8 +18,9 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=3.2">
 </head>
+
 <body>
 
   <!-- iOS Header Bar -->
@@ -159,8 +160,12 @@
     <!-- Tab 3: Personalized Portfolio Studio -->
     <section id="tab-personal" class="tab-content">
       <div class="card">
-        <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px;">👤 나만의 개인화 포트폴리오 Studio</h2>
-        <p style="font-size: 12px; color: var(--text-muted);">보유 중인 주식 자산을 등록하고 포트폴리오 총 손익 및 95% 위험 가치(VaR)를 실시간 진단하세요.</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h2 style="font-size: 18px; font-weight: 700; color: #fff;">👤 나만의 개인화 포트폴리오 Studio</h2>
+          <span style="font-size: 10px; color: #34d399; background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.3); padding: 3px 8px; border-radius: 10px; font-weight: 700;">🔒 내 기기 전용 독립 보관</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted);">다른 사용자와 섞이지 않고 본인 기기에서만 안전하게 관리되는 독립 포트폴리오입니다.</p>
+
         
         <div style="margin-top: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
           <label style="font-size: 12px; color: #a5b4fc; font-weight: 600;">👤 투자자 성향 선택:</label>
@@ -227,9 +232,13 @@
       <div id="mHoldingsListCard" class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h3 style="font-size: 15px; font-weight: 700; color: #fff;">📋 등록된 보유 자산 목록</h3>
-          <button id="mClearAssetsBtn" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer;">🗑️ 전체 삭제</button>
+          <div style="display: flex; gap: 6px;">
+            <button id="mLoadSampleBtn" style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">💡 예시 샘플 불러오기</button>
+            <button id="mClearAssetsBtn" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ 전체 비우기</button>
+          </div>
         </div>
         <div id="mHoldingsListContainer">
+
           <!-- Asset Cards rendered dynamically by JS -->
         </div>
       </div>
@@ -371,11 +380,14 @@
     </div>
   </nav>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=3.2"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js');
+      navigator.serviceWorker.register('/static/sw.js?v=3.2').then(reg => {
+        reg.update();
+      });
     }
   </script>
+
 </body>
 </html>

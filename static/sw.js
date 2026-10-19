@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-stock-pwa-v2';
+const CACHE_NAME = 'ai-stock-pwa-v3';
 const urlsToCache = [
   '/',
   '/static/app.css',
@@ -19,6 +19,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('Deleting old cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -30,17 +31,27 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // API 요청은 캐시를 거치지 않고 바로 네트워크 요청 (Network Only)
+  // API 요청은 항상 네트워크 직접 호출
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // 정적 리소스는 Cache First
+  // Network First 전략: 최신 네트워크 응답 우선, 오프라인일 때만 캐시 사용
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
 
