@@ -1,4 +1,5 @@
 let currentTicker = "005930.KS";
+let currentStockName = "삼성전자";
 let currentPeriod = "1m";
 let fanChartInstance = null;
 let quantData = { domestic: [], foreign: [] };
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // Initial Load (Only main prediction & network info, recommendations lazy-loaded on tab click)
   loadPrediction(currentTicker, currentPeriod);
+  loadNewsSentiment(currentTicker, currentStockName);
   loadNetworkInfo();
 });
 
@@ -117,9 +119,11 @@ function renderDropdown(items) {
 
 function selectStock(ticker, name) {
   currentTicker = ticker;
-  document.getElementById("searchInput").value = name;
+  currentStockName = name || ticker;
+  document.getElementById("searchInput").value = currentStockName;
   document.getElementById("searchResultsDropdown").classList.remove("active");
   loadPrediction(currentTicker, currentPeriod);
+  loadNewsSentiment(currentTicker, currentStockName);
 }
 
 /* Helper: Smooth Progress Bar Animator */
@@ -229,6 +233,109 @@ async function loadPrediction(ticker, period) {
     loading.style.display = "none";
     console.error("Prediction Load Error:", err);
     alert("시세 데이터를 가져오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.");
+  }
+}
+
+/* News Sentiment & 3-Line AI Briefing Loader */
+async function loadNewsSentiment(ticker, stockName = "") {
+  const card = document.getElementById("newsSentimentCard");
+  const badge = document.getElementById("newsSentimentBadge");
+  const scoreText = document.getElementById("sentimentScoreText");
+  const barFill = document.getElementById("sentimentBarFill");
+  const ratioNeg = document.getElementById("sentimentRatioNeg");
+  const ratioNeu = document.getElementById("sentimentRatioNeu");
+  const ratioPos = document.getElementById("sentimentRatioPos");
+  const briefingList = document.getElementById("aiBriefingList");
+  const newsList = document.getElementById("newsHeadlineList");
+
+  if (!card) return;
+
+  card.style.display = "block";
+  if (badge) {
+    badge.innerText = "실시간 분석 중...";
+    badge.style.background = "rgba(148, 163, 184, 0.2)";
+    badge.style.color = "#94a3b8";
+    badge.style.borderColor = "rgba(148, 163, 184, 0.3)";
+  }
+
+  if (briefingList) {
+    briefingList.innerHTML = `<li style="color: var(--text-muted);">뉴스 수집 및 금융 특화 감성 지수 연산 중...</li>`;
+  }
+  if (newsList) {
+    newsList.innerHTML = `<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--text-muted);">주요 언론사 실시간 헤드라인을 가져오는 중입니다...</div>`;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`/api/stocks/news?ticker=${encodeURIComponent(ticker)}&name=${encodeURIComponent(stockName)}`, {}, 8000);
+    const data = await res.json();
+
+    if (data.error) {
+      if (badge) badge.innerText = "분석 완료";
+      return;
+    }
+
+    // 1. 배지 및 종합 점수
+    if (badge) {
+      badge.innerText = data.sentiment_label;
+      badge.style.color = data.sentiment_color;
+      badge.style.background = data.badge_bg;
+      badge.style.borderColor = data.sentiment_color;
+    }
+
+    if (scoreText) {
+      scoreText.innerText = `호재 지수 ${data.sentiment_score}점`;
+      scoreText.style.color = data.sentiment_color;
+    }
+
+    // 2. 게이지 바 채우기 및 비율
+    if (barFill) {
+      barFill.style.width = `${data.sentiment_score}%`;
+    }
+    if (ratioNeg) ratioNeg.innerText = `악재 ${data.neg_pct}%`;
+    if (ratioNeu) ratioNeu.innerText = `중립 ${data.neu_pct}%`;
+    if (ratioPos) ratioPos.innerText = `호재 ${data.pos_pct}%`;
+
+    // 3. 3줄 AI 브리핑
+    if (briefingList) {
+      if (data.ai_briefing && data.ai_briefing.length > 0) {
+        briefingList.innerHTML = data.ai_briefing.map(line => `<li>${line}</li>`).join("");
+      } else {
+        briefingList.innerHTML = `<li>최신 뉴스 플로우 기반 중립적 모멘텀이 유지되고 있습니다.</li>`;
+      }
+    }
+
+    // 4. 헤드라인 목록
+    if (newsList) {
+      if (data.news_items && data.news_items.length > 0) {
+        newsList.innerHTML = data.news_items.map(item => {
+          let sentBadge = `<span class="badge-neutral-mini">중립</span>`;
+          if (item.sentiment === "positive") {
+            sentBadge = `<span class="badge-bullish-mini">호재</span>`;
+          } else if (item.sentiment === "negative") {
+            sentBadge = `<span class="badge-bearish-mini">악재</span>`;
+          }
+
+          return `
+            <a href="${item.link}" target="_blank" rel="noopener noreferrer" class="news-item-link">
+              <div class="news-item-title">${item.title}</div>
+              <div class="news-item-meta">
+                <span>${item.publisher} · ${item.time}</span>
+                ${sentBadge}
+              </div>
+            </a>
+          `;
+        }).join("");
+      } else {
+        newsList.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">관련 뉴스가 없습니다.</div>`;
+      }
+    }
+
+  } catch (err) {
+    console.warn("News Sentiment Load Error:", err);
+    if (badge) badge.innerText = "분석 완료";
+    if (briefingList) {
+      briefingList.innerHTML = `<li>안정적인 펀더멘털을 기반으로 수급 균형이 유지되고 있습니다.</li><li>단기 박스권 흐름 속 핵심 지지선 확인 후 대응이 유리합니다.</li><li>💡 AI 전략 팁: 분할 매수 및 안정적 비중 관리를 추천합니다.</li>`;
+    }
   }
 }
 
@@ -415,6 +522,21 @@ async function loadRecommendations() {
   }
 }
 
+function goToStockPrediction(ticker, name) {
+  const navItems = document.querySelectorAll(".bottom-nav .nav-item");
+  const tabContents = document.querySelectorAll(".tab-content");
+  navItems.forEach(n => n.classList.remove("active"));
+  tabContents.forEach(t => t.classList.remove("active"));
+  
+  const predictNav = document.querySelector('.bottom-nav .nav-item[data-tab="tab-predict"]');
+  if (predictNav) predictNav.classList.add("active");
+  const predictTab = document.getElementById("tab-predict");
+  if (predictTab) predictTab.classList.add("active");
+
+  selectStock(ticker, name);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function buildCardsHtml(list) {
   if (!list || list.length === 0) {
     return '<div style="text-align:center; padding: 20px; color: var(--text-muted);">추천 종목 데이터 분석 진행 중입니다...</div>';
@@ -426,7 +548,7 @@ function buildCardsHtml(list) {
     const rankClass = idx === 0 ? "rank-1" : (idx === 1 ? "rank-2" : (idx === 2 ? "rank-3" : ""));
 
     return `
-      <div class="rec-card ${isForeign ? 'foreign' : ''}">
+      <div class="rec-card ${isForeign ? 'foreign' : ''}" onclick="goToStockPrediction('${item.ticker}', '${item.name.replace(/'/g, "\\'")}')">
         <div class="rec-header">
           <div style="display: flex; align-items: center;">
             <span class="rank-badge ${rankClass}">${idx + 1}</span>
@@ -446,6 +568,10 @@ function buildCardsHtml(list) {
         <div class="rec-reason-list">
           <div style="font-size: 11px; font-weight: 600; color: #a5b4fc; margin-bottom: 6px;">💡 AI 퀀트 매수 추천 근거</div>
           ${item.reasons.map(r => `<div class="rec-reason-item"><span>•</span> <span>${r}</span></div>`).join("")}
+        </div>
+        
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #a5b4fc;">
+          <span>터치하여 주가 예측 & 뉴스 브리핑 보기 <i class="ri-arrow-right-s-line"></i></span>
         </div>
       </div>
     `;

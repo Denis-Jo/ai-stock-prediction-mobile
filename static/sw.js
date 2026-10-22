@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-stock-pwa-v3';
+const CACHE_NAME = 'ai-stock-pwa-v4';
 const urlsToCache = [
   '/',
   '/static/app.css',

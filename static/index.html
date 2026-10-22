@@ -126,6 +126,57 @@
         </div>
       </div>
 
+      <!-- News Sentiment & 3-Line AI Briefing Card -->
+      <div id="newsSentimentCard" class="card" style="display: none; margin-top: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">📰</span>
+            <div>
+              <h3 style="font-size: 14px; font-weight: 700; color: #fff;">실시간 뉴스 감성 레이더 & AI 브리핑</h3>
+              <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">호재/악재 감성 지수 및 3줄 핵심 요약</p>
+            </div>
+          </div>
+          <span id="newsSentimentBadge" class="sentiment-badge">분석 중</span>
+        </div>
+
+        <!-- Sentiment Gauge Bar -->
+        <div class="sentiment-gauge-wrapper">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px;">
+            <span style="color: #f87171; font-weight: 600;">📉 악재 우세</span>
+            <span id="sentimentScoreText" style="font-weight: 800; font-size: 15px; color: #34d399;">호재 지수 --점</span>
+            <span style="color: #34d399; font-weight: 600;">📈 호재 우세</span>
+          </div>
+          <div class="sentiment-bar-track">
+            <div id="sentimentBarFill" class="sentiment-bar-fill" style="width: 50%;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+            <span id="sentimentRatioNeg">악재 0%</span>
+            <span id="sentimentRatioNeu">중립 0%</span>
+            <span id="sentimentRatioPos">호재 0%</span>
+          </div>
+        </div>
+
+        <!-- 3-Line AI Briefing Box -->
+        <div class="ai-briefing-box">
+          <div class="ai-briefing-header">
+            <span style="font-size: 14px;">✨</span>
+            <span style="font-size: 12.5px; font-weight: 700; color: #a5b4fc;">AI 3줄 핵심 요약 브리핑</span>
+          </div>
+          <ul id="aiBriefingList" class="ai-briefing-list">
+            <li>뉴스 수집 및 분석을 진행하고 있습니다...</li>
+          </ul>
+        </div>
+
+        <!-- Live News Headlines List -->
+        <div style="margin-top: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1;">최신 주요 뉴스 헤드라인</span>
+            <span style="font-size: 10.5px; color: #64748b;">(터치 시 원문 이동)</span>
+          </div>
+          <div id="newsHeadlineList" class="news-headline-list"></div>
+        </div>
+      </div>
+
     </section>
 
     <!-- Tab 2: AI Quant Portfolio Recommendation -->
@@ -380,10 +431,10 @@
     </div>
   </nav>
 
-  <script src="/static/app.js?v=3.2"></script>
+  <script src="/static/app.js?v=3.3"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js?v=3.2').then(reg => {
+      navigator.serviceWorker.register('/static/sw.js?v=3.3').then(reg => {
         reg.update();
       });
     }

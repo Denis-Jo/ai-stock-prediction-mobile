@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from quant_engine import search_stock_list, get_quant_recommendations, COMPANY_TICKERS
 from prediction_engine import run_monte_carlo_prediction
+from news_engine import analyze_stock_news_sentiment
 
 
 app = FastAPI(
@@ -62,6 +63,15 @@ def api_predict(
 ):
     """LSTM + 몬테카를로 1,000회 주가 예측 API"""
     res = run_monte_carlo_prediction(ticker=ticker, period_key=period, base_date_str=base_date)
+    return res
+
+@app.get("/api/stocks/news")
+def api_stock_news(
+    ticker: str = Query("005930.KS", description="주식 티커"),
+    name: str = Query("", description="종목명")
+):
+    """실시간 뉴스 감성 분석(호재/악재 지수) 및 3줄 AI 브리핑 API"""
+    res = analyze_stock_news_sentiment(ticker=ticker, stock_name=name)
     return res
 
 def resolve_item_info(item: dict):
